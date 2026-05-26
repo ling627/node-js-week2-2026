@@ -126,7 +126,7 @@ npm test
 - Method：`POST`、URL：`http://localhost:3000/coaches/avatar`
 - 點選 Body -> 再點擊 `form-data`
 - 表格部分 Key 名稱輸入 file，類型要選擇 File（預設為 Text）
-- Value 部分選擇一個圖片檔案（如果有出現警示符號 -> 可參考 Week2 Postman 圖片出現警示符號教學）
+- Value 部分選擇一個圖片檔案（如果有出現警示符號 -> 可參考 [Week2 Postman 圖片出現警示符號教學](https://hackmd.io/@hexschool/H1ddhaflzg)）
 - 最後按下 Postman 視窗右方的 Send 按鈕
 
 方式一、方式二執行後可看看圖片上傳功能是否正確運作，若上傳成功則會顯示回傳的檔案資訊（`{ "filename": "...", "sizeKB": ..., "ext": "...", "savedPath": "..." }`）
