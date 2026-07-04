@@ -2,6 +2,13 @@ const http = require('node:http');
 const fs = require('node:fs');
 const { formidable } = require('formidable');  // formidable v3 用 named import
 
+const header = {
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Content-Length, X-Requested-With',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'PATCH, POST, GET,OPTIONS,DELETE',
+  'Content-Type': 'application/json'
+};
+
 // ========== 任務一：讀取上傳設定 ==========
 /**
  * 從 process.env 讀取上傳相關設定，回傳設定物件。
@@ -28,6 +35,13 @@ const { formidable } = require('formidable');  // formidable v3 用 named import
 function getUploadConfig() {
   // TODO: 實作此函式
   // 提示：用 || 給預設值；MAX_FILE_SIZE_MB 是字串，記得先 Number() 轉型再換算 bytes
+  const maxFileSizeMB = Number(process.env.MAX_FILE_SIZE_MB) || 5;
+  const maxFileSize = maxFileSizeMB * 1024 * 1024;
+  return {
+    'uploadDir': process.env.UPLOAD_DIR || '/tmp',
+    'maxFileSize': maxFileSize,
+    'gymName': process.env.GYM_NAME || '未命名健身房',
+  };
 }
 
 // ========== 任務二：取副檔名 ==========
@@ -51,6 +65,11 @@ function getUploadConfig() {
 function getFileExtension(filename) {
   // TODO: 實作此函式
   // 提示：用 lastIndexOf('.') 找最後一個 .，toLowerCase() 轉小寫
+  const index = filename.lastIndexOf('.');
+  if (index <= 0) {
+    return '';
+  }
+  return filename.slice(index).toLowerCase();
 }
 
 // ========== 任務三：解析檔案 metadata ==========
@@ -76,6 +95,11 @@ function getFileExtension(filename) {
 function parseFileMetadata(file) {
   // TODO: 實作此函式
   // 提示：呼叫 getFileExtension 取副檔名，Math.round(size / 1024) 算 KB
+  return {
+    filename: file.originalFilename,
+    sizeKB: Math.round(file.size / 1024),
+    ext: getFileExtension(file.originalFilename),
+  };
 }
 
 // ========== 任務四：產出 upload log 字串 ==========
@@ -98,6 +122,7 @@ function parseFileMetadata(file) {
 function formatUploadLog(meta, config) {
   // TODO: 實作此函式
   // 提示：用 template literal 組字串
+  return `[${config.gymName}] Uploaded ${meta.filename} (${meta.sizeKB} KB) → ${config.uploadDir}`;
 }
 
 // ========== 任務五：路由分派 ==========
@@ -137,6 +162,56 @@ function router(req, res, config) {
   //     form.on('error', (err) => {
   //       console.log(err); // 記錄 log、清理暫存檔、額外監控可以寫在這邊
   //     });  
+  if (req.method === 'POST' && req.url === '/coaches/avatar') {
+    handleUpload(req, res, config);
+  } else {
+    handleNotFound(req, res);
+  }
+}
+
+function handleUpload(req, res, config) {
+  //用 formidable 解析 multipart/form-data
+  const form = formidable({
+    uploadDir: config.uploadDir,
+    maxFileSize: config.maxFileSize,
+    keepExtensions: true,
+  });
+
+  form.on('error', (err) => {
+    console.log(err); // 記錄 log、清理暫存檔、額外監控可以寫在這邊
+  });
+
+  form.parse(req, (err, fields, files) => {
+    //formidable 解析錯誤（含超過 maxFileSize）→ 回 500 + JSON { error }
+    if (err) {
+      res.writeHead(500, header);
+      res.end(JSON.stringify({ error: err.message }));
+      return;
+    }
+    //沒 file 欄位 → 回 400 + JSON { error: 'No file uploaded' }
+    const file = files.file;
+    if (!file) {
+      res.writeHead(400, header);
+      res.end(JSON.stringify({ error: 'No file uploaded' }));
+      return;
+    }
+    //成功 → 回 200 + JSON { filename, sizeKB, ext, savedPath }
+    const meta = parseFileMetadata(files.file[0]);
+    res.writeHead(200, header);
+    res.write(JSON.stringify({
+      filename: meta.filename,
+      sizeKB: meta.sizeKB,
+      ext: meta.ext,
+      savedPath: config.uploadDir
+    }));
+    res.end();
+  });
+}
+
+function handleNotFound(req, res) {
+  //其他路徑 → 回 404 + JSON { error: 'Not Found' }
+  res.writeHead(404, header);
+  res.end(JSON.stringify({ error: 'Not Found' }));
 }
 
 // ========== 任務六：建立上傳 server ==========
@@ -158,6 +233,16 @@ function router(req, res, config) {
 function createUploadServer(config) {
   // TODO: 實作此函式
   // 提示：主邏輯都在 router 裡，這邊函式內容不多
+  const { uploadDir } = config;
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const server = http.createServer((req, res) => {
+    router(req, res, config);
+  });
+
+  return server;
 }
 
 module.exports = {
