@@ -196,13 +196,10 @@ function handleUpload(req, res, config) {
       return;
     }
     //成功 → 回 200 + JSON { filename, sizeKB, ext, savedPath }
-    const meta = parseFileMetadata(files.file[0]);
     res.writeHead(200, header);
     res.write(JSON.stringify({
-      filename: meta.filename,
-      sizeKB: meta.sizeKB,
-      ext: meta.ext,
-      savedPath: config.uploadDir
+      ...parseFileMetadata(file),
+      savedPath: file.filepath
     }));
     res.end();
   });
@@ -234,9 +231,7 @@ function createUploadServer(config) {
   // TODO: 實作此函式
   // 提示：主邏輯都在 router 裡，這邊函式內容不多
   const { uploadDir } = config;
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
+  fs.mkdirSync(uploadDir, { recursive: true });
 
   const server = http.createServer((req, res) => {
     router(req, res, config);
